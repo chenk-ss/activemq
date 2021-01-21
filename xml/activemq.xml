@@ -51,6 +51,9 @@
                          http://activemq.apache.org/slow-consumer-handling.html
 
                     -->
+                    <dispatchPolicy>
+                        <clientIdFilterDispatchPolicy />
+                    </dispatchPolicy>
                   <pendingMessageLimitStrategy>
                     <constantPendingMessageLimitStrategy limit="1000"/>
                   </pendingMessageLimitStrategy>
