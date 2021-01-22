@@ -4,7 +4,6 @@ import org.apache.activemq.broker.region.MessageReference;
 import org.apache.activemq.broker.region.Subscription;
 import org.apache.activemq.command.ActiveMQDestination;
 import org.apache.activemq.filter.MessageEvaluationContext;
-import org.apache.activemq.util.ByteSequence;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -21,84 +20,81 @@ public class ClientIdFilterDispatchPolicy extends SimpleDispatchPolicy {
 
     private static Logger LOG = LoggerFactory.getLogger(ClientIdFilterDispatchPolicy.class);
 
-    public static final String CLIENTID = "_CLIENTID";
+    public static final String PTP_CLIENTID = "_CLIENTID";
+
+    //可自定义消息目标id在消息属性中的key
+    private String ptpClientId = PTP_CLIENTID;
 
     public boolean dispatch(MessageReference node, MessageEvaluationContext msgContext, List<Subscription> consumers) throws Exception {
-        //指定特定后缀名的topic进入自定义分发策略
-        String _clientId = null;
-        LOG.info(System.currentTimeMillis() + "进入ClientIdFilterDispatchPolicy");
-        LOG.info("node:" + node.toString());
-
-        ByteSequence byteSequence = node.getMessage().getContent();
-        byte[] bytes = byteSequence.data;
-        for (int i = 0; i < bytes.length; i++) {
-            // 字符包含"_"时，判断是不是_CLIENTID字段
-            if (bytes[i] == 95 && i + CLIENTID.length() < bytes.length) {
-                boolean boo = true;
-                for (int j = 0; j < CLIENTID.length(); j++) {
-                    if (!(bytes[i + j] == CLIENTID.substring(j, j + 1).getBytes()[0])) {
-                        boo = false;
-                        break;
-                    }
-                }
-                if (boo) {
-                    int clientIdLen = 0;
-                    // TODO 需要加上是不是最外层的判断，避免message中也有CLIENTID字段
-                    while (true) {
-                        int byteNum = bytes[i + CLIENTID.length() + 1 + clientIdLen];
-                        // 125和44分别代表"}"和",",当下一个字符为125或44时，获取_CLIENTID结束
-                        if (byteNum != 125 && byteNum != 44) {
-                            clientIdLen++;
-                        } else {
-                            break;
-                        }
-                    }
-                    byte[] clientByte = new byte[clientIdLen];
-                    // 截取_CLIENTID信息
-                    for (int j = 0; j < clientIdLen; j++) {
-                        clientByte[j] = bytes[i + CLIENTID.length() + j + 1];
-                    }
-                    _clientId = new String(clientByte);
-                    LOG.info("_clientId:" + _clientId);
-                    break;
-                }
-            }
+        if (LOG.isInfoEnabled()) {
+            LOG.info("===============Enter ClientIdFilterDispatchPolicy........");
         }
 
-        LOG.info("-----结束循环----");
+        // 获取消息中的目标 客户端id
+        Object clientId = node.getMessage().getProperty(ptpClientId);
 
-        if (_clientId == null || "".equals(_clientId) || "null".equals(_clientId)) {
+        // 如果没有，直接广播
+        if (clientId == null) {
             return super.dispatch(node, msgContext, consumers);
         }
 
-        ActiveMQDestination _destination = node.getMessage().getDestination();
+        if (LOG.isInfoEnabled()) {
+            LOG.info("===============Client id : " + clientId);
+        }
 
+        // 获取当前消息类型，此处主要是限制为主题模式
+        ActiveMQDestination destination = node.getMessage().getDestination();
         int count = 0;
+        // 遍历所有订阅者
         for (Subscription sub : consumers) {
-            LOG.info("isTopic:" + _destination.isTopic());
-            LOG.info("getClientId:" + sub.getContext().getClientId());
-            // Don't deliver to browsers
-//            LOG.info("sub.getConsumerInfo().isBrowser():" + sub.getConsumerInfo().isBrowser());
+            if (LOG.isInfoEnabled()) {
+                LOG.info("===============consumers id: " + sub.getContext().getClientId());
+            }
+
+            // 不交于浏览器
             if (sub.getConsumerInfo().isBrowser()) {
                 continue;
             }
-            // Only dispatch to interested subscriptions
+
+            // 只发送给感兴趣的订阅
             if (!sub.matches(node, msgContext)) {
                 sub.unmatched(node);
                 continue;
             }
-            if (_clientId != null && _destination.isTopic() && _clientId.equals(sub.getContext().getClientId())) {
-                LOG.info(sub.getContext().getClientId() + "匹配成功");
-                //把消息推送给满足要求的subscription
+
+            if (LOG.isInfoEnabled()) {
+                LOG.info("==============destination clientId : " + clientId);
+            }
+
+            // 消息中带有的目标id不为空，也为主题模式，并且当前的消费者的id和消息中的目标id相同，则投递消息
+            if (clientId != null && destination.isTopic() && clientId.equals(sub.getContext().getClientId())) {
+                if (LOG.isInfoEnabled()) {
+                    LOG.info("==============Send p2p message to : " + clientId);
+                    LOG.info("==============Topic : " + destination.isTopic());
+                }
                 sub.add(node);
                 count++;
             } else {
+                // 过滤消息，不进行投递
+                LOG.info("==============Un consumers subscription!");
                 sub.unmatched(node);
             }
-        }
-        if (count == 0) {
-            LOG.error("没有找到用户名为:{}的连接", _clientId);
+
         }
         return count > 0;
+    }
+
+
+    public String getPtpClientId() {
+
+        return ptpClientId;
+
+    }
+
+
+    public void setPtpClientId(String ptpClientId) {
+
+        this.ptpClientId = ptpClientId;
+
     }
 }

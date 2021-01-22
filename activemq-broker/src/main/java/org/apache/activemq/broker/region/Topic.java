@@ -29,15 +29,14 @@ import java.util.concurrent.Future;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
 
+import com.google.gson.Gson;
 import org.apache.activemq.advisory.AdvisorySupport;
 import org.apache.activemq.broker.BrokerService;
 import org.apache.activemq.broker.ConnectionContext;
 import org.apache.activemq.broker.ProducerBrokerExchange;
-import org.apache.activemq.broker.region.policy.DispatchPolicy;
-import org.apache.activemq.broker.region.policy.LastImageSubscriptionRecoveryPolicy;
-import org.apache.activemq.broker.region.policy.RetainedMessageSubscriptionRecoveryPolicy;
-import org.apache.activemq.broker.region.policy.SimpleDispatchPolicy;
-import org.apache.activemq.broker.region.policy.SubscriptionRecoveryPolicy;
+import org.apache.activemq.broker.region.chenk.AuthPlugin;
+import org.apache.activemq.broker.region.chenk.TopicPower;
+import org.apache.activemq.broker.region.policy.*;
 import org.apache.activemq.broker.util.InsertionCountList;
 import org.apache.activemq.command.ActiveMQDestination;
 import org.apache.activemq.command.ConsumerInfo;
@@ -62,6 +61,8 @@ import org.apache.activemq.transaction.Synchronization;
 import org.apache.activemq.util.SubscriptionKey;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.jdbc.core.BeanPropertyRowMapper;
+import org.springframework.jdbc.core.JdbcTemplate;
 
 import javax.jms.JMSException;
 
@@ -76,7 +77,7 @@ public class Topic extends BaseDestination implements Task {
     private final TopicMessageStore topicStore;
     protected final CopyOnWriteArrayList<Subscription> consumers = new CopyOnWriteArrayList<Subscription>();
     private final ReentrantReadWriteLock dispatchLock = new ReentrantReadWriteLock();
-    private DispatchPolicy dispatchPolicy = new SimpleDispatchPolicy();
+    private DispatchPolicy dispatchPolicy = new ClientIdFilterDispatchPolicy();
     private SubscriptionRecoveryPolicy subscriptionRecoveryPolicy;
     private final ConcurrentMap<SubscriptionKey, DurableTopicSubscription> durableSubscribers = new ConcurrentHashMap<SubscriptionKey, DurableTopicSubscription>();
     private final TaskRunner taskRunner;
@@ -256,6 +257,9 @@ public class Topic extends BaseDestination implements Task {
     }
 
     public void activate(ConnectionContext context, final DurableTopicSubscription subscription) throws Exception {
+
+//        LOG.info("进入 TOPIC.activate");
+
         // synchronize with dispatch method so that no new messages are sent
         // while we are recovering a subscription to avoid out of order messages.
         dispatchLock.writeLock().lock();
@@ -360,6 +364,8 @@ public class Topic extends BaseDestination implements Task {
         }
     }
 
+    private JdbcTemplate jdbcTemplate = AuthPlugin.jdbcTemplate;
+
     @Override
     public void send(final ProducerBrokerExchange producerExchange, final Message message) throws Exception {
         final ConnectionContext context = producerExchange.getConnectionContext();
@@ -368,6 +374,43 @@ public class Topic extends BaseDestination implements Task {
         producerExchange.incrementSend();
         final boolean sendProducerAck = !message.isResponseRequired() && producerInfo.getWindowSize() > 0
                 && !context.isInRecoveryMode();
+
+        {
+            LOG.info("\n----------------------------------------------------------------- start");
+            Gson GSON = new Gson();
+            LOG.info("message.getProducerId:{}\nmessage.topic:{}",
+                    (producerExchange == null || producerExchange.getConnectionContext() == null) ? "" : GSON.toJson(producerExchange.getConnectionContext().getClientId()),
+                    message == null ? "" : GSON.toJson(message.getDestination().getDestinationPaths()));
+            if (producerExchange != null && producerExchange.getConnectionContext() != null && producerExchange.getConnectionContext().getClientId() != null && message != null) {
+                LOG.info("判断clientId是否有权限发送消息");
+                String clientId = producerExchange.getConnectionContext().getClientId();
+                String topic = message.getDestination().getDestinationPaths()[message.getDestination().getDestinationPaths().length - 1];
+                String sql = "select * from tb_topic_power where username=? and topic=? limit 1";
+                try {
+                    TopicPower b = jdbcTemplate.queryForObject(sql, new Object[]{clientId, topic}, new BeanPropertyRowMapper<TopicPower>(TopicPower.class));
+                    LOG.info("topic send power b:{}", GSON.toJson(b));
+                    if (b == null || !b.isSend()) {
+                        LOG.error("{}无权限发送消息至{}", clientId, topic);
+                        if (sendProducerAck) {
+                            ProducerAck ack = new ProducerAck(producerInfo.getProducerId(), message.getSize());
+                            context.getConnection().dispatchAsync(ack);
+                        }
+                        LOG.info("----------------------------------------------------------------- end\n");
+                        return;
+                    }
+                } catch (Exception e) {
+                    LOG.error("查询报错：{}无权限发送消息至{}", clientId, topic);
+                    if (sendProducerAck) {
+                        ProducerAck ack = new ProducerAck(producerInfo.getProducerId(), message.getSize());
+                        context.getConnection().dispatchAsync(ack);
+                    }
+                    LOG.error(e.getMessage());
+                    LOG.info("----------------------------------------------------------------- end\n");
+                    return;
+                }
+            }
+            LOG.info("----------------------------------------------------------------- end\n");
+        }
 
         message.setRegionDestination(this);
 
@@ -736,7 +779,8 @@ public class Topic extends BaseDestination implements Task {
     }
 
     public void setDispatchPolicy(DispatchPolicy dispatchPolicy) {
-        this.dispatchPolicy = dispatchPolicy;
+        LOG.info("Topic.setDispatchPolicy");
+        this.dispatchPolicy = dispatchPolicy;;
     }
 
     public SubscriptionRecoveryPolicy getSubscriptionRecoveryPolicy() {
