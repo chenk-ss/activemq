@@ -383,7 +383,7 @@ public class Topic extends BaseDestination implements Task {
                     message == null ? "" : GSON.toJson(message.getDestination().getDestinationPaths()));
             if (producerExchange != null && producerExchange.getConnectionContext() != null && producerExchange.getConnectionContext().getClientId() != null && message != null) {
                 LOG.info("判断clientId是否有权限发送消息");
-                String clientId = producerExchange.getConnectionContext().getClientId();
+                String clientId = producerExchange.getConnectionContext().getUserName();
                 String topic = message.getDestination().getDestinationPaths()[message.getDestination().getDestinationPaths().length - 1];
                 String sql = "select * from tb_topic_power where username=? and topic=? limit 1";
                 try {
