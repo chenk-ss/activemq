@@ -31,6 +31,8 @@
         </property>
     </bean>
 
+    <import resource="redis.xml"/>
+
     <!-- Allows accessing the server log -->
     <bean id="logQuery" class="io.fabric8.insight.log.log4j.Log4jLogQuery"
           lazy-init="false" scope="singleton"
@@ -164,7 +166,6 @@
         Take a look at ${ACTIVEMQ_HOME}/conf/jetty.xml for more details
     -->
     <import resource="jetty.xml"/>
-    <import resource="redis.xml"/>
 
 </beans>
         <!-- END SNIPPET: example -->
