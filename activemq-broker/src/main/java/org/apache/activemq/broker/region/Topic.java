@@ -16,38 +16,17 @@
  */
 package org.apache.activemq.broker.region;
 
-import java.io.IOException;
-import java.util.ArrayList;
-import java.util.LinkedList;
-import java.util.List;
-import java.util.Map;
-import java.util.concurrent.CancellationException;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.ConcurrentMap;
-import java.util.concurrent.CopyOnWriteArrayList;
-import java.util.concurrent.Future;
-import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.concurrent.locks.ReentrantReadWriteLock;
-
 import com.google.gson.Gson;
 import org.apache.activemq.advisory.AdvisorySupport;
 import org.apache.activemq.broker.BrokerService;
 import org.apache.activemq.broker.ConnectionContext;
 import org.apache.activemq.broker.ProducerBrokerExchange;
 import org.apache.activemq.broker.region.chenk.AuthPlugin;
+import org.apache.activemq.broker.region.chenk.RedisPlugin;
 import org.apache.activemq.broker.region.chenk.TopicPower;
 import org.apache.activemq.broker.region.policy.*;
 import org.apache.activemq.broker.util.InsertionCountList;
-import org.apache.activemq.command.ActiveMQDestination;
-import org.apache.activemq.command.ConsumerInfo;
-import org.apache.activemq.command.ExceptionResponse;
-import org.apache.activemq.command.Message;
-import org.apache.activemq.command.MessageAck;
-import org.apache.activemq.command.MessageId;
-import org.apache.activemq.command.ProducerAck;
-import org.apache.activemq.command.ProducerInfo;
-import org.apache.activemq.command.Response;
-import org.apache.activemq.command.SubscriptionInfo;
+import org.apache.activemq.command.*;
 import org.apache.activemq.filter.MessageEvaluationContext;
 import org.apache.activemq.filter.NonCachedMessageEvaluationContext;
 import org.apache.activemq.store.MessageRecoveryListener;
@@ -65,6 +44,14 @@ import org.springframework.jdbc.core.BeanPropertyRowMapper;
 import org.springframework.jdbc.core.JdbcTemplate;
 
 import javax.jms.JMSException;
+import java.io.IOException;
+import java.util.ArrayList;
+import java.util.LinkedList;
+import java.util.List;
+import java.util.Map;
+import java.util.concurrent.*;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.locks.ReentrantReadWriteLock;
 
 import static org.apache.activemq.transaction.Transaction.IN_USE_STATE;
 
@@ -365,7 +352,6 @@ public class Topic extends BaseDestination implements Task {
     }
 
     private JdbcTemplate jdbcTemplate = AuthPlugin.jdbcTemplate;
-
     @Override
     public void send(final ProducerBrokerExchange producerExchange, final Message message) throws Exception {
         final ConnectionContext context = producerExchange.getConnectionContext();
@@ -374,7 +360,7 @@ public class Topic extends BaseDestination implements Task {
         producerExchange.incrementSend();
         final boolean sendProducerAck = !message.isResponseRequired() && producerInfo.getWindowSize() > 0
                 && !context.isInRecoveryMode();
-
+        LOG.info("RedisPlugin:"+ String.valueOf(RedisPlugin.getRedisTemplate() == null));
         {
             LOG.info("\n----------------------------------------------------------------- start");
             Gson GSON = new Gson();
@@ -385,6 +371,8 @@ public class Topic extends BaseDestination implements Task {
                 LOG.info("判断clientId是否有权限发送消息");
                 String clientId = producerExchange.getConnectionContext().getUserName();
                 String topic = message.getDestination().getDestinationPaths()[message.getDestination().getDestinationPaths().length - 1];
+                RedisPlugin.put(clientId, topic);
+                LOG.info(GSON.toJson(RedisPlugin.getByKey(clientId)));
                 String sql = "select * from tb_topic_power where username=? and topic=? limit 1";
                 try {
                     TopicPower b = jdbcTemplate.queryForObject(sql, new Object[]{clientId, topic}, new BeanPropertyRowMapper<TopicPower>(TopicPower.class));
@@ -395,7 +383,7 @@ public class Topic extends BaseDestination implements Task {
                             ProducerAck ack = new ProducerAck(producerInfo.getProducerId(), message.getSize());
                             context.getConnection().dispatchAsync(ack);
                         }
-                        LOG.info("----------------------------------------------------------------- end\n");
+                        LOG.info("\n----------------------------------------------------------------- end");
                         return;
                     }
                 } catch (Exception e) {
@@ -405,11 +393,11 @@ public class Topic extends BaseDestination implements Task {
                         context.getConnection().dispatchAsync(ack);
                     }
                     LOG.error(e.getMessage());
-                    LOG.info("----------------------------------------------------------------- end\n");
+                    LOG.info("\n----------------------------------------------------------------- end");
                     return;
                 }
             }
-            LOG.info("----------------------------------------------------------------- end\n");
+            LOG.info("\n----------------------------------------------------------------- end");
         }
 
         message.setRegionDestination(this);
