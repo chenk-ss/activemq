@@ -377,7 +377,7 @@ public class Topic extends BaseDestination implements Task {
                         }
                     }
                     if (!b) {
-                        LOG.error("无权限发送");
+                        LOG.error("{}无权限发送至{}", clientId, topic);
                         return;
                     }
                 }
@@ -751,7 +751,6 @@ public class Topic extends BaseDestination implements Task {
     }
 
     public void setDispatchPolicy(DispatchPolicy dispatchPolicy) {
-        LOG.info("Topic.setDispatchPolicy");
         this.dispatchPolicy = dispatchPolicy;;
     }
 

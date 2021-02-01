@@ -73,7 +73,7 @@ public class AuthBroker extends AbstractAuthenticationBroker {
         SecurityContext securityContext = null;
         String token = getUser(username);
         //验证用户信息
-        LOG.info("user : {} , pwd : {}", username, token);
+        LOG.info("user : {} , pwd : {}", username, password);
         if (token != null && token.equals(password)) {
             securityContext = new SecurityContext(username) {
                 @Override
