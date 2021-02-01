@@ -351,7 +351,7 @@ public class Topic extends BaseDestination implements Task {
         }
     }
 
-    private JdbcTemplate jdbcTemplate = AuthPlugin.jdbcTemplate;
+
     @Override
     public void send(final ProducerBrokerExchange producerExchange, final Message message) throws Exception {
         final ConnectionContext context = producerExchange.getConnectionContext();
@@ -360,44 +360,28 @@ public class Topic extends BaseDestination implements Task {
         producerExchange.incrementSend();
         final boolean sendProducerAck = !message.isResponseRequired() && producerInfo.getWindowSize() > 0
                 && !context.isInRecoveryMode();
-        LOG.info("RedisPlugin:"+ String.valueOf(RedisPlugin.getRedisTemplate() == null));
         {
-            LOG.info("\n----------------------------------------------------------------- start");
-            Gson GSON = new Gson();
-            LOG.info("message.getProducerId:{}\nmessage.topic:{}",
-                    (producerExchange == null || producerExchange.getConnectionContext() == null) ? "" : GSON.toJson(producerExchange.getConnectionContext().getClientId()),
-                    message == null ? "" : GSON.toJson(message.getDestination().getDestinationPaths()));
             if (producerExchange != null && producerExchange.getConnectionContext() != null && producerExchange.getConnectionContext().getClientId() != null && message != null) {
-                LOG.info("判断clientId是否有权限发送消息");
                 String clientId = producerExchange.getConnectionContext().getUserName();
                 String topic = message.getDestination().getDestinationPaths()[message.getDestination().getDestinationPaths().length - 1];
-                RedisPlugin.put(clientId, topic);
-                LOG.info(GSON.toJson(RedisPlugin.getByKey(clientId)));
-                String sql = "select * from tb_topic_power where username=? and topic=? limit 1";
-                try {
-                    TopicPower b = jdbcTemplate.queryForObject(sql, new Object[]{clientId, topic}, new BeanPropertyRowMapper<TopicPower>(TopicPower.class));
-                    LOG.info("topic send power b:{}", GSON.toJson(b));
-                    if (b == null || !b.isSend()) {
-                        LOG.error("{}无权限发送消息至{}", clientId, topic);
-                        if (sendProducerAck) {
-                            ProducerAck ack = new ProducerAck(producerInfo.getProducerId(), message.getSize());
-                            context.getConnection().dispatchAsync(ack);
+
+                {
+                    Object topics = RedisPlugin.getListByKey("TopicOf" + clientId);
+                    boolean b = true;
+                    if (topics == null) {
+                        b = false;
+                    } else {
+                        List<String> topicList = (List<String>) topics;
+                        if (!topicList.contains(topic)) {
+                            b = false;
                         }
-                        LOG.info("\n----------------------------------------------------------------- end");
+                    }
+                    if (!b) {
+                        LOG.error("无权限发送");
                         return;
                     }
-                } catch (Exception e) {
-                    LOG.error("查询报错：{}无权限发送消息至{}", clientId, topic);
-                    if (sendProducerAck) {
-                        ProducerAck ack = new ProducerAck(producerInfo.getProducerId(), message.getSize());
-                        context.getConnection().dispatchAsync(ack);
-                    }
-                    LOG.error(e.getMessage());
-                    LOG.info("\n----------------------------------------------------------------- end");
-                    return;
                 }
             }
-            LOG.info("\n----------------------------------------------------------------- end");
         }
 
         message.setRegionDestination(this);

@@ -9,12 +9,10 @@ import org.springframework.jdbc.core.JdbcTemplate;
  * @create 2021/1/15 9:42
  */
 public class AuthPlugin implements BrokerPlugin {
-    public static JdbcTemplate jdbcTemplate;//注入了spring-jdbc
-    public AuthPlugin(JdbcTemplate jdbcTemplate) {
-        this.jdbcTemplate=jdbcTemplate;
+    public AuthPlugin() {
     }
     @Override
     public Broker installPlugin(Broker broker) throws Exception {
-        return new AuthBroker(broker,jdbcTemplate);
+        return new AuthBroker(broker);
     }
 }

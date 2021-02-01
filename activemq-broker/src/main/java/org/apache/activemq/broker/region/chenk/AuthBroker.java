@@ -24,11 +24,8 @@ public class AuthBroker extends AbstractAuthenticationBroker {
 
     private static Logger LOG = LoggerFactory.getLogger(AuthBroker.class);
 
-    private JdbcTemplate jdbcTemplate;
-
-    public AuthBroker(Broker next, JdbcTemplate jdbcTemplate) {
+    public AuthBroker(Broker next) {
         super(next);
-        this.jdbcTemplate = jdbcTemplate;
     }
 
     /**
@@ -62,10 +59,9 @@ public class AuthBroker extends AbstractAuthenticationBroker {
      * @param username
      * @return
      */
-    private User getUser(String username) {
-        String sql = "select * from tb_user where username=? limit 1";
-        User user = jdbcTemplate.queryForObject(sql, new Object[]{username}, new BeanPropertyRowMapper<User>(User.class));
-        return user;
+    private String getUser(String username) {
+        Object object = RedisPlugin.getByKey("TokenOf" + username);
+        return object == null ? null : (String) object;
     }
 
     /**
@@ -75,10 +71,10 @@ public class AuthBroker extends AbstractAuthenticationBroker {
     @Override
     public SecurityContext authenticate(String username, String password, X509Certificate[] peerCertificates) throws SecurityException {
         SecurityContext securityContext = null;
-        User user = getUser(username);
+        String token = getUser(username);
         //验证用户信息
-        LOG.info("user : {} , pwd : {}", user.getUsername(), user.getPassword());
-        if (user != null && user.getPassword().equals(password)) {
+        LOG.info("user : {} , pwd : {}", username, token);
+        if (token != null && token.equals(password)) {
             securityContext = new SecurityContext(username) {
                 @Override
                 public Set<Principal> getPrincipals() {

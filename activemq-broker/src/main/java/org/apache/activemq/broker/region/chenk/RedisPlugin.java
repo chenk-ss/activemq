@@ -24,11 +24,12 @@ public class RedisPlugin {
     }
 
     public static Object getByKey(String key) {
-        ValueOperations<Serializable, Object> valueOperation = redisTemplate.opsForValue();
-        return valueOperation.get(key);
+        return redisTemplate.opsForValue().get(key);
+    }
+    public static Object getListByKey(String key) {
+        return redisTemplate.opsForList().range(key, 0 , -1);
     }
     public static void put(String key, Object value) {
-        ValueOperations<Serializable, Object> valueOperation = redisTemplate.opsForValue();
-        valueOperation.set(key, value);
+        redisTemplate.opsForValue().set(key, value);
     }
 }
