@@ -47,9 +47,9 @@ public class ClientIdFilterDispatchPolicy extends SimpleDispatchPolicy {
         int count = 0;
         // 遍历所有订阅者
         for (Subscription sub : consumers) {
-            if (LOG.isInfoEnabled()) {
-                LOG.info("===============consumers id: " + sub.getContext().getClientId());
-            }
+//            if (LOG.isInfoEnabled()) {
+//                LOG.info("===============consumers id: " + sub.getContext().getClientId());
+//            }
 
             // 不交于浏览器
             if (sub.getConsumerInfo().isBrowser()) {
@@ -62,9 +62,9 @@ public class ClientIdFilterDispatchPolicy extends SimpleDispatchPolicy {
                 continue;
             }
 
-            if (LOG.isInfoEnabled()) {
-                LOG.info("==============destination clientId : " + clientId);
-            }
+//            if (LOG.isInfoEnabled()) {
+//                LOG.info("==============destination clientId : " + clientId);
+//            }
 
             // 消息中带有的目标id不为空，也为主题模式，并且当前的消费者的id和消息中的目标id相同，则投递消息
             if (clientId != null && destination.isTopic() && clientId.equals(sub.getContext().getClientId())) {
@@ -74,13 +74,17 @@ public class ClientIdFilterDispatchPolicy extends SimpleDispatchPolicy {
                 }
                 sub.add(node);
                 count++;
+                return true;
             } else {
                 // 过滤消息，不进行投递
-                LOG.info("==============Un consumers subscription!");
+//                LOG.info("==============Un consumers subscription!");
                 sub.unmatched(node);
             }
-
         }
+//        if (count == 0) {
+//            msgContext.clear();
+//            throw new SecurityException("没有名为" + clientId + "的用户");
+//        }
         return count > 0;
     }
 

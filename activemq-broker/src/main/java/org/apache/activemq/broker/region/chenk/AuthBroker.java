@@ -8,9 +8,6 @@ import org.apache.activemq.security.AbstractAuthenticationBroker;
 import org.apache.activemq.security.SecurityContext;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.jdbc.core.BeanPropertyRowMapper;
-import org.springframework.jdbc.core.JdbcTemplate;
-
 import java.security.Principal;
 import java.security.cert.X509Certificate;
 import java.util.HashSet;
@@ -38,6 +35,7 @@ public class AuthBroker extends AbstractAuthenticationBroker {
         LOG.debug("addConnection");
         SecurityContext securityContext = context.getSecurityContext();
         if (securityContext == null) {
+            // TODO 判断UserName和ClientId是否对应
             securityContext = authenticate(info.getUserName(), info.getPassword(), null);
             context.setSecurityContext(securityContext);
             securityContexts.add(securityContext);

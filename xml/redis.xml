@@ -9,7 +9,7 @@
     http://www.springframework.org/schema/context/spring-context.xsd">
 
     <bean id="jedisPoolConfig" class="redis.clients.jedis.JedisPoolConfig"
-          p:max-total="5" />
+          p:max-total="10" />
 
     <bean id="jedisConnectionFactory" class="org.springframework.data.redis.connection.jedis.JedisConnectionFactory"
           p:host-name="127.0.0.1" 
@@ -19,12 +19,24 @@
     </bean>
 
     <bean id="redisTemplate" class="org.springframework.data.redis.core.RedisTemplate" 
-          p:connection-factory-ref="jedisConnectionFactory" 
-          p:enable-transaction-support="true"/>
+          p:connection-factory-ref="jedisConnectionFactory">
+        <property name="keySerializer">
+            <bean class="org.springframework.data.redis.serializer.StringRedisSerializer" />
+        </property>
+        <property name="valueSerializer">
+            <bean class="org.springframework.data.redis.serializer.StringRedisSerializer" />
+        </property>
+        <property name="hashKeySerializer">
+            <bean class="org.springframework.data.redis.serializer.StringRedisSerializer" />
+        </property>
+        <property name="hashValueSerializer">
+            <bean class="org.springframework.data.redis.serializer.StringRedisSerializer" />
+        </property>
+    </bean>
 
     <bean id="stringRedisTemplate" class="org.springframework.data.redis.core.StringRedisTemplate" 
           p:connection-factory-ref="jedisConnectionFactory" 
-          p:enable-transaction-support="true"/>  
+          />
 	<bean id="topic" class="org.apache.activemq.broker.region.chenk.RedisPlugin">
 		<property name="redisTemplate" ref="redisTemplate"/>
 	</bean>
