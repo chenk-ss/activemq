@@ -461,9 +461,13 @@ public class MQTTProtocolConverter {
                 }
                 LOG.trace("MQTT Snd PUBLISH message:{} client:{} connection:{}",
                           publish.messageId(), clientId, connectionInfo.getConnectionId());
-                getMQTTTransport().sendToMQTT(publish.encode());
-                if (ack != null && !sub.expectAck(publish)) {
-                    getMQTTTransport().sendToActiveMQ(ack);
+
+                String messageClientId = (String) md.getMessage().getProperty("_CLIENTID");
+                if (messageClientId == null || "".equals(messageClientId) || messageClientId.equals(clientId)) {
+                    getMQTTTransport().sendToMQTT(publish.encode());
+                    if (ack != null && !sub.expectAck(publish)) {
+                        getMQTTTransport().sendToActiveMQ(ack);
+                    }
                 }
             }
         } else if (command.getDataStructureType() == ConnectionError.DATA_STRUCTURE_TYPE) {
