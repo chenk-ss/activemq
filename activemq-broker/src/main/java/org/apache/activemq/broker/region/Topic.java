@@ -365,7 +365,7 @@ public class Topic extends BaseDestination implements Task {
                 String clientId = producerExchange.getConnectionContext().getUserName();
                 String topic = message.getDestination().getDestinationPaths()[message.getDestination().getDestinationPaths().length - 1];
 
-                {
+                if (!"Connection".equals(topic) && !"Topic".equals(topic)) {
                     Object topics = RedisPlugin.getListByKey("TopicOf" + clientId);
                     boolean b = true;
                     if (topics == null) {
@@ -377,8 +377,10 @@ public class Topic extends BaseDestination implements Task {
                         }
                     }
                     if (!b) {
-                        LOG.error("{}无权限发送至{}", clientId, topic);
-                        return;
+                        String msg = clientId + "无权限发送至" + topic;
+                        LOG.error(msg);
+                        throw new SecurityException(msg);
+//                        return;
                     }
                 }
             }

@@ -1,7 +1,6 @@
 package org.apache.activemq.broker.region.chenk;
 
 import org.springframework.data.redis.core.RedisTemplate;
-import org.springframework.data.redis.core.ValueOperations;
 import java.io.Serializable;
 
 /**
@@ -26,9 +25,11 @@ public class RedisPlugin {
     public static Object getByKey(String key) {
         return redisTemplate.opsForValue().get(key);
     }
+
     public static Object getListByKey(String key) {
-        return redisTemplate.opsForList().range(key, 0 , -1);
+        return redisTemplate.opsForList().range(key, 0, -1);
     }
+
     public static void put(String key, Object value) {
         redisTemplate.opsForValue().set(key, value);
     }
